@@ -2,28 +2,44 @@
 import { AppData } from "../types";
 import { INITIAL_DATA } from "../constants";
 
-// This is a unique identifier for your college database on the cloud.
-// In a real production, you would store this in an environment variable.
-const CLOUD_API_URL = 'https://api.npoint.io/468846059c19358178a9'; 
+/**
+ * VERCEL KV INTEGRATION
+ * To use this, go to your Vercel Dashboard -> Storage -> Create Database -> KV (Redis).
+ * Vercel will automatically provide KV_REST_API_URL and KV_REST_API_TOKEN.
+ */
+const KV_URL = (process.env as any).KV_REST_API_URL;
+const KV_TOKEN = (process.env as any).KV_REST_API_TOKEN;
 const STORAGE_KEY = 'QUADX_CAMPUS_DATA';
 
 export const PersistenceService = {
   /**
-   * Loads the latest campus data from the Global Cloud first,
-   * falling back to Local Storage if offline.
+   * Loads the latest campus data from Vercel KV Global Cloud.
+   * Falls back to Local Storage if offline or KV not configured.
    */
   async loadData(): Promise<AppData> {
-    try {
-      console.log("Syncing with Global Cloud...");
-      const response = await fetch(CLOUD_API_URL);
-      if (response.ok) {
-        const cloudData = await response.json();
-        // Save a local copy for offline use
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(cloudData));
-        return cloudData;
+    if (KV_URL && KV_TOKEN) {
+      try {
+        console.log("Syncing with Vercel KV Hub...");
+        // Vercel KV REST GET
+        const response = await fetch(`${KV_URL}/get/${STORAGE_KEY}`, {
+          headers: { Authorization: `Bearer ${KV_TOKEN}` },
+        });
+        
+        if (response.ok) {
+          const result = await response.json();
+          // Vercel KV returns { result: "stringified_json" }
+          if (result.result) {
+            const cloudData = JSON.parse(result.result);
+            // Save a local copy for offline use
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(cloudData));
+            return cloudData;
+          }
+        }
+      } catch (e) {
+        console.warn("Vercel KV unreachable, using local backup:", e);
       }
-    } catch (e) {
-      console.warn("Global Cloud unreachable, loading local backup.");
+    } else {
+      console.warn("Vercel KV credentials not found. Running in Local Storage mode.");
     }
 
     try {
@@ -37,31 +53,34 @@ export const PersistenceService = {
   },
 
   /**
-   * Saves data to both Local Storage AND the Global Cloud.
-   * This ensures all users get the update immediately.
+   * Saves data to both Local Storage AND Vercel KV.
    */
   async saveData(data: AppData): Promise<boolean> {
-    try {
-      // 1. Save locally for immediate feedback
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    // 1. Save locally for immediate UI responsiveness
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 
-      // 2. Deploy to Global Cloud
-      // Note: npoint.io allows POSTing to update the bin
-      const response = await fetch(CLOUD_API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
+    if (KV_URL && KV_TOKEN) {
+      try {
+        console.log("Deploying to Vercel KV...");
+        // Vercel KV REST SET (We send the data as a JSON string in the body)
+        const response = await fetch(`${KV_URL}/set/${STORAGE_KEY}`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${KV_TOKEN}` },
+          body: JSON.stringify(data),
+        });
 
-      if (!response.ok) throw new Error("Cloud update failed");
+        if (!response.ok) throw new Error("Vercel KV Cloud Update Failed");
 
-      // Broadcast change for other tabs on the same machine
-      window.dispatchEvent(new Event('quadx_data_sync'));
-      return true;
-    } catch (e) {
-      console.error("Global Sync Error:", e);
-      return false;
+        // Broadcast change for other tabs on the same machine
+        window.dispatchEvent(new Event('quadx_data_sync'));
+        return true;
+      } catch (e) {
+        console.error("Global Sync Error:", e);
+        return false;
+      }
     }
+    
+    return true; // Local success
   },
 
   /**
