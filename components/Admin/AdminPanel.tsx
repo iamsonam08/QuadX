@@ -1,6 +1,6 @@
 
 import React, { useState, useRef } from 'react';
-import { AppData, TimetableEntry, ExamSchedule, ScholarshipItem, InternshipItem, CampusEvent, Complaint } from '../../types';
+import { AppData, Complaint } from '../../types';
 import { extractCategoryData, stylizeMapImage } from '../../services/geminiService';
 import { PersistenceService } from '../../services/persistenceService';
 import Logo from '../Logo';
@@ -87,7 +87,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ appData, setAppData, onExit }) 
           content = event.target?.result as string;
           finalMimeType = 'text/plain';
         } else {
-          // Default for PDF or Images in other categories
           content = event.target?.result as string;
         }
 
@@ -98,7 +97,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ appData, setAppData, onExit }) 
             updateAppData(selectedCategory as AdminCategory, extracted);
             setStatusMsg('Success!');
           } else {
-            setStatusMsg('AI found no data.');
+            setStatusMsg('No data found.');
           }
         }
       } catch (err) {

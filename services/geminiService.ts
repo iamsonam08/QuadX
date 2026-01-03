@@ -2,8 +2,11 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { AppData } from "../types";
 
+// Explicitly declare process for the compiler
+declare var process: { env: { [key: string]: string | undefined } };
+
 // Initialize the GoogleGenAI client with the API key from environment variables.
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
@@ -14,7 +17,6 @@ export async function askVPai(question: string, context: AppData) {
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      // Fix: Use simple string for text-only prompt as per guidelines.
       contents: question,
       config: {
         systemInstruction: `You are VPai, the official AI assistant for QuadX College. 
@@ -32,7 +34,6 @@ export async function askVPai(question: string, context: AppData) {
       }
     });
 
-    // Fix: Access response.text property directly (not a method).
     return response.text?.trim() || "I'm not sure how to answer that. Could you try rephrasing? 🤔";
   } catch (error) {
     console.error("VPai Connection Error:", error);
@@ -42,8 +43,6 @@ export async function askVPai(question: string, context: AppData) {
 
 /**
  * Stylize Campus Map
- * Uses Gemini 2.5 Flash Image to redesign the uploaded map into a simplified, animated vector style.
- * STRICTURE: Do not add any text labels or markers that do not exist in the original image.
  */
 export async function stylizeMapImage(imageBase64: string): Promise<string | null> {
   try {
@@ -58,7 +57,7 @@ export async function stylizeMapImage(imageBase64: string): Promise<string | nul
             },
           },
           {
-            text: 'Transform this campus map into a clean, simplified, 2D vector animation style. Use a vibrant QuadX color palette: neon blue, deep violet, and emerald green. Simplify all structures into clean geometric shapes with smooth, flat colors and bold, crisp outlines. The final result should look like a professional animated digital map from a tech application. CRITICAL: Maintain the exact spatial layout and proportions. DO NOT add any new text labels, icons, or locations that are not present in the original image. Focus solely on a visual stylistic redesign of the existing layout.',
+            text: 'Transform this campus map into a clean, simplified, 2D vector animation style. Use a vibrant QuadX color palette: neon blue, deep violet, and emerald green. Simplify all structures into clean geometric shapes with smooth, flat colors and bold, crisp outlines. Maintain the exact spatial layout and proportions. DO NOT add any new text labels.',
           },
         ],
       },
@@ -188,7 +187,6 @@ export async function extractCategoryData(category: string, content: string, mim
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      // Fix: Adjust contents structure to follow expected format { parts: [...] }
       contents: { parts },
       config: {
         responseMimeType: "application/json",
@@ -196,7 +194,6 @@ export async function extractCategoryData(category: string, content: string, mim
       },
     });
 
-    // Fix: Access response.text as a property.
     const parsed = JSON.parse(response.text || '[]');
     return parsed.map((item: any) => ({
       ...item,
