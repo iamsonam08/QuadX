@@ -62,12 +62,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ appData, setAppData, onExit }) 
     const reader = new FileReader();
     const isSpreadsheet = file.name.endsWith('.xlsx') || file.name.endsWith('.xls') || file.name.endsWith('.csv');
     const isText = file.name.endsWith('.txt');
-    const isVisual = file.type.startsWith('image/') || file.type === 'application/pdf';
 
     reader.onload = async (event) => {
       try {
         let content = '';
-        let finalMimeType = file.type;
+        let finalMimeType = file.type || 'text/plain';
 
         if (selectedCategory === 'CAMPUS_MAP' && file.type.startsWith('image/')) {
           const optimized = await compressImage(event.target?.result as string);
@@ -77,7 +76,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ appData, setAppData, onExit }) 
           setAppData(prev => ({ ...prev, campusMapImage: optimized, stylizedMapImage: finalStylized }));
           setStatusMsg("Map Updated!");
         } else if (isSpreadsheet) {
-          setStatusMsg('Converting Spreadsheet...');
+          setStatusMsg('Parsing Spreadsheet...');
           const data = event.target?.result;
           const workbook = XLSX.read(data, { type: 'array' });
           const sheetName = workbook.SheetNames[0];
@@ -87,7 +86,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ appData, setAppData, onExit }) 
         } else if (isText) {
           content = event.target?.result as string;
           finalMimeType = 'text/plain';
-        } else if (isVisual) {
+        } else {
+          // Default for PDF or Images in other categories
           content = event.target?.result as string;
         }
 
@@ -98,11 +98,12 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ appData, setAppData, onExit }) 
             updateAppData(selectedCategory as AdminCategory, extracted);
             setStatusMsg('Success!');
           } else {
-            setStatusMsg('No data found.');
+            setStatusMsg('AI found no data.');
           }
         }
       } catch (err) {
-        setStatusMsg('Error processing file.');
+        console.error("File processing error:", err);
+        setStatusMsg('Error reading file.');
       } finally {
         setIsProcessing(false);
         setTimeout(() => setStatusMsg(''), 2000);
@@ -168,14 +169,14 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ appData, setAppData, onExit }) 
         <div className="space-y-6 animate-fadeIn">
           <div className="flex items-center justify-between">
             <button onClick={() => setSelectedCategory(null)} className="w-10 h-10 rounded-full bg-slate-900 flex items-center justify-center text-blue-400 border border-slate-800"><i className="fa-solid fa-chevron-left"></i></button>
-            <h3 className="text-lg font-black text-white uppercase">Reports</h3>
+            <h3 className="text-lg font-black text-white uppercase tracking-tighter">Reports Received</h3>
             <div className="w-10"></div>
           </div>
           <div className="space-y-4">
             {appData.complaints.length === 0 ? (
               <div className="bg-slate-900 p-16 rounded-[3rem] text-center border border-slate-800">
                 <i className="fa-solid fa-check-double text-4xl text-emerald-500/20 mb-4"></i>
-                <p className="text-[10px] font-black text-slate-500 uppercase">All clear!</p>
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">No pending reports</p>
               </div>
             ) : (
               appData.complaints.map(c => (
@@ -210,14 +211,14 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ appData, setAppData, onExit }) 
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <button onClick={() => setSelectedCategory(null)} className="w-10 h-10 rounded-full bg-slate-900 flex items-center justify-center text-blue-400 border border-slate-800"><i className="fa-solid fa-chevron-left"></i></button>
-          <h3 className="text-lg font-black text-white uppercase">{cat.label} Hub</h3>
+          <h3 className="text-lg font-black text-white uppercase tracking-tighter">{cat.label} Hub</h3>
           <div className="w-10"></div>
         </div>
         <div className="bg-slate-900 border-2 border-slate-800 border-dashed rounded-[3rem] p-10 text-center relative group overflow-hidden">
           <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
           <button onClick={() => fileInputRef.current?.click()} className="w-16 h-16 rounded-2xl bg-blue-600/10 text-blue-500 flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-all"><i className="fa-solid fa-cloud-arrow-up text-3xl"></i></button>
           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Upload Data File</p>
-          <p className="text-[8px] text-slate-600 font-bold mt-2 uppercase">PDF, Image, Excel, CSV, TXT</p>
+          <p className="text-[8px] text-slate-600 font-bold mt-2 uppercase tracking-widest">Excel, CSV, TXT, PDF, Image</p>
         </div>
         <div className="space-y-3">
           {items.map((item: any) => (
@@ -234,8 +235,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ appData, setAppData, onExit }) 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col max-w-md mx-auto font-['Outfit']">
       <header className="p-8 border-b border-slate-900 flex justify-between items-center sticky top-0 bg-slate-950/80 backdrop-blur-xl z-20">
-        <div className="flex items-center gap-3"><Logo className="w-12 h-12" /><h1 className="text-xl font-black text-blue-500">ADMIN</h1></div>
-        <button onClick={onExit} className="bg-slate-900 w-11 h-11 rounded-2xl flex items-center justify-center text-rose-500 shadow-lg"><i className="fa-solid fa-power-off"></i></button>
+        <div className="flex items-center gap-3"><Logo className="w-12 h-12" /><h1 className="text-xl font-black text-blue-500 tracking-tighter">ADMIN HUB</h1></div>
+        <button onClick={onExit} className="bg-slate-900 w-11 h-11 rounded-2xl flex items-center justify-center text-rose-500 shadow-lg active:scale-90 transition-all"><i className="fa-solid fa-power-off"></i></button>
       </header>
       <main className="flex-1 p-6 overflow-y-auto pb-32 no-scrollbar">
         {selectedCategory ? renderManagementView(selectedCategory) : (
@@ -249,7 +250,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ appData, setAppData, onExit }) 
             </button>
             <div className="grid grid-cols-2 gap-4">
               {(Object.keys(CATEGORY_MAP).filter(k => k !== 'SYSTEM') as AdminCategory[]).map(key => (
-                <button key={key} onClick={() => setSelectedCategory(key)} className="bg-slate-900 border border-slate-800 p-8 rounded-[3rem] flex flex-col items-center justify-center group hover:border-blue-500 transition-all">
+                <button key={key} onClick={() => setSelectedCategory(key)} className="bg-slate-900 border border-slate-800 p-8 rounded-[3rem] flex flex-col items-center justify-center group hover:border-blue-500 transition-all active:scale-95">
                   <div className="w-12 h-12 rounded-2xl bg-slate-800 flex items-center justify-center mb-4"><i className={`fa-solid ${CATEGORY_MAP[key].icon} text-lg ${CATEGORY_MAP[key].color}`}></i></div>
                   <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">{CATEGORY_MAP[key].label}</span>
                 </button>
