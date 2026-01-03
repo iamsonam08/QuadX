@@ -3,20 +3,18 @@ import { AppData } from "../types";
 import { INITIAL_DATA } from "../constants";
 
 /**
- * GLOBAL CLOUD SYNC (FREE EDITION)
- * We use npoint.io as a high-speed, free JSON hub. 
- * LIMIT: 1MB total payload.
+ * GLOBAL CLOUD SYNC
+ * Using npoint.io shared JSON hub for real-time global state.
  */
-const CLOUD_BIN_ID = '468846059c19358178a9'; 
+const CLOUD_BIN_ID = '9307f5984f884a441416'; // Using the user's provided BIN
 const CLOUD_URL = `https://api.npoint.io/${CLOUD_BIN_ID}`;
-const DB_NAME = 'QuadX_DB';
-const STORE_NAME = 'campus_data';
-const STORAGE_KEY = 'QUADX_CAMPUS_DATA';
+const STORAGE_KEY = 'QUADX_SHARED_STATE';
+const DB_NAME = 'QuadX_Global_DB';
+const STORE_NAME = 'campus_data_store';
 
-// Helper to interact with IndexedDB (No Quota Limit)
 const getIDB = (): Promise<IDBDatabase> => {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, 1);
+    const request = indexedDB.open(DB_NAME, 2);
     request.onupgradeneeded = () => {
       if (!request.result.objectStoreNames.contains(STORE_NAME)) {
         request.result.createObjectStore(STORE_NAME);
@@ -49,47 +47,41 @@ const idbSet = async (key: string, value: any): Promise<void> => {
 
 export const PersistenceService = {
   /**
-   * Loads the latest campus data from the Global Cloud Hub or IndexedDB.
+   * Loads global data from cloud bin. Adds cache-busting to ensure fresh data.
    */
   async loadData(): Promise<AppData> {
     try {
-      const response = await fetch(CLOUD_URL);
+      const response = await fetch(`${CLOUD_URL}?cb=${Date.now()}`);
       if (response.ok) {
         const cloudData = await response.json();
-        await idbSet(STORAGE_KEY, cloudData);
-        return cloudData;
+        if (cloudData && typeof cloudData === 'object' && !Array.isArray(cloudData)) {
+          await idbSet(STORAGE_KEY, cloudData);
+          return cloudData as AppData;
+        }
       }
     } catch (e) {
-      console.warn("Cloud Hub offline, loading IndexedDB backup.");
+      console.warn("Global cloud hub offline, using local cache.");
     }
 
     try {
       const saved = await idbGet(STORAGE_KEY);
       if (saved) return saved;
-    } catch (e) {
-      console.error("Critical: Failed to load local data.");
-    }
+    } catch (e) {}
     
     return INITIAL_DATA;
   },
 
   /**
-   * Saves data to IndexedDB AND pushes it to the Global Cloud.
+   * Saves data to both local storage and the global cloud hub.
    */
   async saveData(data: AppData): Promise<boolean> {
     try {
       await idbSet(STORAGE_KEY, data);
 
-      const jsonString = JSON.stringify(data);
-      if (jsonString.length > 1000000) {
-        console.error("Data too large for Cloud Sync (1MB limit). Local save only.");
-        return false;
-      }
-
       const response = await fetch(CLOUD_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: jsonString,
+        body: JSON.stringify(data),
       });
 
       if (response.ok) {
@@ -98,18 +90,8 @@ export const PersistenceService = {
       }
       return false;
     } catch (e) {
-      console.error("Sync Error:", e);
+      console.error("Cloud Sync Failure:", e);
       return false;
-    }
-  },
-
-  /**
-   * Wipes the cloud and resets to factory settings.
-   */
-  async resetGlobal() {
-    if (confirm("Reset the entire global database?")) {
-      await this.saveData(INITIAL_DATA);
-      window.location.reload();
     }
   }
 };

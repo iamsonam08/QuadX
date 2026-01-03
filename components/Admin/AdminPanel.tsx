@@ -50,6 +50,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ appData, setAppData, onExit }) 
   const [selectedCategory, setSelectedCategory] = useState<AdminCategory | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [statusMsg, setStatusMsg] = useState('');
+  const [manualText, setManualText] = useState('');
+  const [inputMode, setInputMode] = useState<'FILE' | 'TEXT'>('FILE');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -91,27 +93,44 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ appData, setAppData, onExit }) 
         }
 
         if (content && selectedCategory !== 'CAMPUS_MAP') {
-          setStatusMsg('Gemini AI Extracting...');
-          const extracted = await extractCategoryData(selectedCategory, content, finalMimeType);
-          if (extracted?.length) {
-            updateAppData(selectedCategory as AdminCategory, extracted);
-            setStatusMsg('Success!');
-          } else {
-            setStatusMsg('No data found.');
-          }
+          processExtraction(content, finalMimeType);
         }
       } catch (err) {
         console.error("File processing error:", err);
         setStatusMsg('Error reading file.');
-      } finally {
         setIsProcessing(false);
-        setTimeout(() => setStatusMsg(''), 2000);
       }
     };
 
     if (isSpreadsheet) reader.readAsArrayBuffer(file);
     else if (isText) reader.readAsText(file);
     else reader.readAsDataURL(file);
+  };
+
+  const handleManualTextSubmit = async () => {
+    if (!manualText.trim() || !selectedCategory) return;
+    setIsProcessing(true);
+    setStatusMsg('AI Processing Text...');
+    await processExtraction(manualText, 'text/plain');
+    setManualText('');
+  };
+
+  const processExtraction = async (content: string, mimeType: string) => {
+    try {
+      if (!selectedCategory) return;
+      const extracted = await extractCategoryData(selectedCategory, content, mimeType);
+      if (extracted?.length) {
+        updateAppData(selectedCategory as AdminCategory, extracted);
+        setStatusMsg('Update Success! 🚀');
+      } else {
+        setStatusMsg('AI found no data.');
+      }
+    } catch (e) {
+      setStatusMsg('Extraction failed.');
+    } finally {
+      setIsProcessing(false);
+      setTimeout(() => setStatusMsg(''), 2500);
+    }
   };
 
   const updateAppData = (category: AdminCategory, items: any[]) => {
@@ -155,6 +174,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ appData, setAppData, onExit }) 
           <button onClick={() => setSelectedCategory(null)} className="w-10 h-10 rounded-full bg-slate-900 flex items-center justify-center text-blue-400 border border-slate-800"><i className="fa-solid fa-chevron-left"></i></button>
           <div className="bg-slate-900 p-8 rounded-[3rem] text-center border border-slate-800">
             <h3 className="text-xl font-black text-white uppercase mb-4">Cloud Deployment</h3>
+            <p className="text-[10px] text-slate-500 font-bold uppercase mb-6 leading-relaxed">Broadcast all your local changes to the live web app globally.</p>
             <button onClick={deployToGlobal} disabled={isProcessing} className="w-full py-6 bg-blue-600 rounded-[2rem] font-black uppercase tracking-widest text-white shadow-xl shadow-blue-500/20 active:scale-95 transition-all">
               {isProcessing ? 'Syncing...' : 'Deploy to Students'}
             </button>
@@ -168,18 +188,18 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ appData, setAppData, onExit }) 
         <div className="space-y-6 animate-fadeIn">
           <div className="flex items-center justify-between">
             <button onClick={() => setSelectedCategory(null)} className="w-10 h-10 rounded-full bg-slate-900 flex items-center justify-center text-blue-400 border border-slate-800"><i className="fa-solid fa-chevron-left"></i></button>
-            <h3 className="text-lg font-black text-white uppercase tracking-tighter">Reports Received</h3>
+            <h3 className="text-lg font-black text-white uppercase tracking-tighter">Student Reports</h3>
             <div className="w-10"></div>
           </div>
           <div className="space-y-4">
             {appData.complaints.length === 0 ? (
               <div className="bg-slate-900 p-16 rounded-[3rem] text-center border border-slate-800">
                 <i className="fa-solid fa-check-double text-4xl text-emerald-500/20 mb-4"></i>
-                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">No pending reports</p>
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">No reports yet</p>
               </div>
             ) : (
               appData.complaints.map(c => (
-                <div key={c.id} className="bg-slate-900 p-6 rounded-[2.5rem] border border-slate-800 space-y-4">
+                <div key={c.id} className="bg-slate-900 p-6 rounded-[2.5rem] border border-slate-800 space-y-4 shadow-xl">
                   <div className="flex justify-between items-start">
                     <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${c.status === 'PENDING' ? 'bg-amber-500/10 text-amber-500' : 'bg-emerald-500/10 text-emerald-500'}`}>
                       {c.status}
@@ -188,10 +208,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ appData, setAppData, onExit }) 
                   </div>
                   <p className="text-xs text-slate-300 font-medium leading-relaxed">{c.text}</p>
                   <div className="flex gap-2">
-                    <button onClick={() => toggleComplaintStatus(c.id)} className="flex-1 py-3 bg-slate-800 rounded-2xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-700">
-                      Toggle Status
+                    <button onClick={() => toggleComplaintStatus(c.id)} className="flex-1 py-3 bg-slate-800 rounded-2xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-700 active:scale-95 transition-all">
+                      {c.status === 'PENDING' ? 'Mark Resolved' : 'Mark Pending'}
                     </button>
-                    <button onClick={() => deleteItem('COMPLAINTS', c.id)} className="w-12 py-3 bg-rose-500/10 text-rose-500 rounded-2xl">
+                    <button onClick={() => deleteItem('COMPLAINTS', c.id)} className="w-12 py-3 bg-rose-500/10 text-rose-500 rounded-2xl active:scale-95 transition-all">
                       <i className="fa-solid fa-trash-can"></i>
                     </button>
                   </div>
@@ -213,17 +233,47 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ appData, setAppData, onExit }) 
           <h3 className="text-lg font-black text-white uppercase tracking-tighter">{cat.label} Hub</h3>
           <div className="w-10"></div>
         </div>
-        <div className="bg-slate-900 border-2 border-slate-800 border-dashed rounded-[3rem] p-10 text-center relative group overflow-hidden">
-          <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
-          <button onClick={() => fileInputRef.current?.click()} className="w-16 h-16 rounded-2xl bg-blue-600/10 text-blue-500 flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-all"><i className="fa-solid fa-cloud-arrow-up text-3xl"></i></button>
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Upload Data File</p>
-          <p className="text-[8px] text-slate-600 font-bold mt-2 uppercase tracking-widest">Excel, CSV, TXT, PDF, Image</p>
+
+        {/* Input Toggle */}
+        <div className="flex gap-2 p-1.5 bg-slate-900 rounded-2xl border border-slate-800">
+          <button onClick={() => setInputMode('FILE')} className={`flex-1 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${inputMode === 'FILE' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}>File Upload</button>
+          <button onClick={() => setInputMode('TEXT')} className={`flex-1 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${inputMode === 'TEXT' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}>Manual Entry</button>
         </div>
+        
+        {inputMode === 'FILE' ? (
+          <div className="bg-slate-900 border-2 border-slate-800 border-dashed rounded-[3rem] p-10 text-center relative group overflow-hidden">
+            <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} accept=".txt,.xlsx,.xls,.csv,.pdf,image/*" />
+            <button onClick={() => fileInputRef.current?.click()} className="w-16 h-16 rounded-2xl bg-blue-600/10 text-blue-500 flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-all shadow-lg"><i className="fa-solid fa-cloud-arrow-up text-3xl"></i></button>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Upload Data File</p>
+            <p className="text-[8px] text-slate-600 font-bold mt-2 uppercase tracking-widest">EXCEL, CSV, TXT, PDF, IMAGE</p>
+          </div>
+        ) : (
+          <div className="bg-slate-900 border border-slate-800 rounded-[3rem] p-6 space-y-4">
+            <textarea 
+              value={manualText}
+              onChange={(e) => setManualText(e.target.value)}
+              placeholder={`Example: ${cat.label} for AIDS branch 3rd year at 10:30am in room 402...`}
+              className="w-full h-32 bg-slate-800 rounded-3xl p-5 text-xs text-slate-200 outline-none border border-slate-700 focus:border-blue-500 transition-all placeholder:text-slate-600"
+            />
+            <button 
+              onClick={handleManualTextSubmit}
+              disabled={!manualText.trim() || isProcessing}
+              className="w-full py-4 bg-blue-600 text-white rounded-2xl text-[9px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all shadow-xl active:scale-95 disabled:opacity-50"
+            >
+              Process with AI
+            </button>
+          </div>
+        )}
+
+        {/* List of Managed Items */}
         <div className="space-y-3">
           {items.map((item: any) => (
-            <div key={item.id} className="bg-slate-900 p-5 rounded-3xl border border-slate-800 flex justify-between items-center">
-              <span className="text-[10px] font-black text-slate-300 uppercase truncate pr-4">{item.subject || item.name || item.title || item.day}</span>
-              <button onClick={() => deleteItem(catKey, item.id)} className="w-8 h-8 rounded-lg bg-rose-500/10 text-rose-500"><i className="fa-solid fa-trash-can text-xs"></i></button>
+            <div key={item.id} className="bg-slate-900 p-5 rounded-3xl border border-slate-800 flex justify-between items-center group hover:border-blue-500/50 transition-all">
+              <div className="flex flex-col">
+                <span className="text-[10px] font-black text-slate-300 uppercase truncate pr-4">{item.subject || item.name || item.title || item.day}</span>
+                <span className="text-[8px] font-bold text-slate-600 uppercase mt-1">{item.branch || item.category || 'Standard Item'}</span>
+              </div>
+              <button onClick={() => deleteItem(catKey, item.id)} className="w-8 h-8 rounded-lg bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white transition-all"><i className="fa-solid fa-trash-can text-xs"></i></button>
             </div>
           ))}
         </div>
@@ -234,30 +284,33 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ appData, setAppData, onExit }) 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col max-w-md mx-auto font-['Outfit']">
       <header className="p-8 border-b border-slate-900 flex justify-between items-center sticky top-0 bg-slate-950/80 backdrop-blur-xl z-20">
-        <div className="flex items-center gap-3"><Logo className="w-12 h-12" /><h1 className="text-xl font-black text-blue-500 tracking-tighter">ADMIN HUB</h1></div>
-        <button onClick={onExit} className="bg-slate-900 w-11 h-11 rounded-2xl flex items-center justify-center text-rose-500 shadow-lg active:scale-90 transition-all"><i className="fa-solid fa-power-off"></i></button>
+        <div className="flex items-center gap-3"><Logo className="w-12 h-12" /><h1 className="text-xl font-black text-blue-500 tracking-tighter uppercase">QuadX Admin</h1></div>
+        <button onClick={onExit} className="bg-slate-900 w-11 h-11 rounded-2xl flex items-center justify-center text-rose-500 shadow-lg active:scale-90 transition-all border border-slate-800"><i className="fa-solid fa-power-off"></i></button>
       </header>
+      
       <main className="flex-1 p-6 overflow-y-auto pb-32 no-scrollbar">
         {selectedCategory ? renderManagementView(selectedCategory) : (
           <div className="space-y-6">
-            <button onClick={() => setSelectedCategory('SYSTEM')} className="w-full bg-gradient-to-br from-blue-600 to-indigo-800 p-10 rounded-[4rem] text-left relative overflow-hidden group shadow-2xl">
+            <button onClick={() => setSelectedCategory('SYSTEM')} className="w-full bg-gradient-to-br from-blue-600 to-indigo-800 p-10 rounded-[4rem] text-left relative overflow-hidden group shadow-2xl active:scale-95 transition-all">
               <div className="relative z-10">
-                <p className="text-blue-200 text-[8px] font-black uppercase tracking-widest mb-2">Sync Control</p>
-                <h2 className="text-3xl font-black text-white tracking-tighter">Broadcast to<br/>Everyone</h2>
+                <p className="text-blue-200 text-[8px] font-black uppercase tracking-widest mb-2">Cloud Hub</p>
+                <h2 className="text-3xl font-black text-white tracking-tighter">Sync Updates<br/>Globally</h2>
               </div>
               <i className="fa-solid fa-satellite-dish absolute -right-4 -bottom-4 text-8xl text-white/10 group-hover:scale-125 transition-transform duration-700"></i>
             </button>
+            
             <div className="grid grid-cols-2 gap-4">
               {(Object.keys(CATEGORY_MAP).filter(k => k !== 'SYSTEM') as AdminCategory[]).map(key => (
-                <button key={key} onClick={() => setSelectedCategory(key)} className="bg-slate-900 border border-slate-800 p-8 rounded-[3rem] flex flex-col items-center justify-center group hover:border-blue-500 transition-all active:scale-95">
-                  <div className="w-12 h-12 rounded-2xl bg-slate-800 flex items-center justify-center mb-4"><i className={`fa-solid ${CATEGORY_MAP[key].icon} text-lg ${CATEGORY_MAP[key].color}`}></i></div>
-                  <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">{CATEGORY_MAP[key].label}</span>
+                <button key={key} onClick={() => setSelectedCategory(key)} className="bg-slate-900 border border-slate-800 p-8 rounded-[3rem] flex flex-col items-center justify-center group hover:border-blue-500 transition-all active:scale-95 shadow-xl">
+                  <div className="w-12 h-12 rounded-2xl bg-slate-800 flex items-center justify-center mb-4 group-hover:bg-blue-600/10 transition-all"><i className={`fa-solid ${CATEGORY_MAP[key].icon} text-lg ${CATEGORY_MAP[key].color}`}></i></div>
+                  <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 group-hover:text-blue-400">{CATEGORY_MAP[key].label}</span>
                 </button>
               ))}
             </div>
           </div>
         )}
       </main>
+      
       {statusMsg && (
         <div className="fixed bottom-10 left-1/2 -translate-x-1/2 bg-blue-600 text-white px-8 py-4 rounded-full font-black text-[10px] uppercase tracking-widest shadow-2xl z-50 animate-bounce">
           {statusMsg}

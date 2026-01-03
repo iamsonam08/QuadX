@@ -2,16 +2,15 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { AppData } from "../types";
 
-// Explicitly declare process for the compiler
+// Explicitly declare process for the compiler to prevent 'process is not defined'
 declare var process: { env: { [key: string]: string | undefined } };
 
-// Initialize the GoogleGenAI client with the API key from environment variables.
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
 /**
- * VPai Chat Assistant
+ * VPai Chat Assistant - Optimized for QuadX context
  */
 export async function askVPai(question: string, context: AppData) {
   try {
@@ -25,16 +24,15 @@ export async function askVPai(question: string, context: AppData) {
         ${JSON.stringify(context)}
 
         OPERATIONAL PROTOCOLS:
-        1. BE CONCISE: Limit responses to 1-2 sentences. Use emojis sparingly.
+        1. BE CONCISE: Limit responses to 1-2 sentences. 
         2. BE ACCURATE: Use the KNOWLEDGE BASE strictly for college-specific answers.
-        3. SOCIAL CHAT: Respond in a friendly, student-like manner.
-        4. DIRECTNESS: Jump straight to the information requested.
-        5. ACCESSIBILITY: Use simple language. Branches: Comp, IT, Civil, Mech, Elect, AIDS, E&TC.`,
+        3. BRANDING: You represent QuadX. Be helpful, modern, and energetic.
+        4. ACCESSIBILITY: Branches supported: Comp, IT, Civil, Mech, Elect, AIDS, E&TC.`,
         temperature: 0.4,
       }
     });
 
-    return response.text?.trim() || "I'm not sure how to answer that. Could you try rephrasing? 🤔";
+    return response.text?.trim() || "I'm not quite sure about that. Try asking something else! 🎓";
   } catch (error) {
     console.error("VPai Connection Error:", error);
     return "I'm having a connection hiccup. Let's try again! ⚡";
@@ -42,7 +40,7 @@ export async function askVPai(question: string, context: AppData) {
 }
 
 /**
- * Stylize Campus Map
+ * AI Image Stylization for Campus Map
  */
 export async function stylizeMapImage(imageBase64: string): Promise<string | null> {
   try {
@@ -57,21 +55,17 @@ export async function stylizeMapImage(imageBase64: string): Promise<string | nul
             },
           },
           {
-            text: 'Transform this campus map into a clean, simplified, 2D vector animation style. Use a vibrant QuadX color palette: neon blue, deep violet, and emerald green. Simplify all structures into clean geometric shapes with smooth, flat colors and bold, crisp outlines. Maintain the exact spatial layout and proportions. DO NOT add any new text labels.',
+            text: 'Transform this campus map into a vibrant, clean, simplified vector animation style. Use QuadX colors: Neon Blue, Deep Purple, and Emerald. Maintain the exact spatial layout but remove clutter. DO NOT add text.',
           },
         ],
       },
       config: {
-        imageConfig: {
-          aspectRatio: "1:1"
-        }
+        imageConfig: { aspectRatio: "1:1" }
       }
     });
 
     for (const part of response.candidates?.[0]?.content?.parts || []) {
-      if (part.inlineData) {
-        return `data:image/png;base64,${part.inlineData.data}`;
-      }
+      if (part.inlineData) return `data:image/png;base64,${part.inlineData.data}`;
     }
     return null;
   } catch (error) {
@@ -167,11 +161,14 @@ const CATEGORY_SCHEMAS: Record<string, any> = {
   }
 };
 
+/**
+ * Extracts structured data from text, image, or PDF using Gemini
+ */
 export async function extractCategoryData(category: string, content: string, mimeType: string = "text/plain") {
   const schema = CATEGORY_SCHEMAS[category];
   if (!schema) return [];
 
-  const parts: any[] = [{ text: `Task: Extract structured JSON data for ${category} from input.` }];
+  const parts: any[] = [{ text: `Task: Extract JSON data for the ${category} section of QuadX College. The input may be messy text, a spreadsheet snippet, or an image. Format the output strictly as JSON based on the schema provided.` }];
 
   if (mimeType.startsWith('image/') || mimeType === 'application/pdf') {
     parts.push({
@@ -181,7 +178,7 @@ export async function extractCategoryData(category: string, content: string, mim
       }
     });
   } else {
-    parts.push({ text: `INPUT DATA:\n${content}` });
+    parts.push({ text: `INPUT SOURCE DATA:\n${content}` });
   }
 
   try {
