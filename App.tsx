@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { AppData, ModuleType } from './types';
 import { INITIAL_DATA } from './constants';
@@ -38,10 +37,9 @@ const App: React.FC = () => {
 
     fetchData();
 
-    // Poll for global updates every 60 seconds to sync all "installed" apps/links
-    const pollInterval = setInterval(() => fetchData(true), 60000);
+    // Fast polling (15s) for real-time feel on all hosted devices
+    const pollInterval = setInterval(() => fetchData(true), 15000);
 
-    // Listen for tab-specific sync events
     const handleSync = async () => {
       const data = await PersistenceService.loadData();
       setAppData(data);
@@ -88,10 +86,9 @@ const App: React.FC = () => {
     }
   };
 
-  const updateAndSyncData = async (newData: AppData | ((prev: AppData) => AppData)) => {
-    const resolvedData = typeof newData === 'function' ? newData(appData) : newData;
-    setAppData(resolvedData);
-    await PersistenceService.saveData(resolvedData);
+  const updateAppDataAndSync = (newData: AppData) => {
+    setAppData(newData);
+    // Persistence handled directly in AdminPanel for granular control
   };
 
   if (isLoading) {
@@ -104,7 +101,7 @@ const App: React.FC = () => {
   }
 
   if (isAdminMode) {
-    return <AdminPanel appData={appData} setAppData={updateAndSyncData} onExit={() => setIsAdminMode(false)} />;
+    return <AdminPanel appData={appData} setAppData={updateAppDataAndSync} onExit={() => setIsAdminMode(false)} />;
   }
 
   const renderModule = () => {
@@ -115,7 +112,11 @@ const App: React.FC = () => {
       case 'EXAM_INFO': return <ExamInfo data={appData} onBack={() => setCurrentModule('DASHBOARD')} />;
       case 'SCHOLARSHIP': return <Scholarship data={appData} onBack={() => setCurrentModule('DASHBOARD')} />;
       case 'EVENT_INFO': return <EventInfo data={appData} onBack={() => setCurrentModule('DASHBOARD')} />;
-      case 'COMPLAINT_BOX': return <ComplaintBox setAppData={updateAndSyncData} onBack={() => setCurrentModule('DASHBOARD')} />;
+      case 'COMPLAINT_BOX': return <ComplaintBox setAppData={async (fn) => {
+        const newData = typeof fn === 'function' ? fn(appData) : fn;
+        setAppData(newData);
+        await PersistenceService.saveData(newData);
+      }} onBack={() => setCurrentModule('DASHBOARD')} />;
       case 'INTERNSHIP': return <Internship data={appData} onBack={() => setCurrentModule('DASHBOARD')} />;
       case 'CAMPUS_MAP': return <CampusMap data={appData} onBack={() => setCurrentModule('DASHBOARD')} />;
       default: return null;
@@ -124,7 +125,6 @@ const App: React.FC = () => {
 
   return (
     <div className={`min-h-screen flex flex-col max-w-md mx-auto relative shadow-2xl overflow-hidden transition-colors duration-500 ${isDarkMode ? 'bg-slate-950 text-white' : 'bg-slate-50 text-slate-800'}`}>
-      {/* Background blobs for visual flair */}
       {currentModule === 'DASHBOARD' && (
         <div className="absolute inset-0 pointer-events-none overflow-hidden">
           <div className="absolute -top-24 -left-24 w-64 h-64 bg-blue-400/10 rounded-full blur-3xl animate-blob"></div>
@@ -138,7 +138,7 @@ const App: React.FC = () => {
             <Logo className="w-16 h-16 transition-transform duration-500 group-hover:scale-110 active:scale-95" />
             <div className="flex flex-col">
               <h1 className="text-2xl font-black bg-gradient-to-r from-blue-400 to-purple-600 bg-clip-text text-transparent tracking-tighter leading-none">QUADX</h1>
-              <span className="text-[8px] font-bold text-slate-400 tracking-[0.3em] uppercase opacity-60">Live Platform</span>
+              <span className="text-[8px] font-bold text-slate-400 tracking-[0.3em] uppercase opacity-60">Global Sync</span>
             </div>
           </div>
           <div className="flex gap-2">
@@ -154,7 +154,7 @@ const App: React.FC = () => {
         {currentModule === 'DASHBOARD' && (
           <div className="mb-6 animate-fadeIn px-2">
             <h2 className="text-3xl font-black text-slate-800 dark:text-white tracking-tight">QuadX Campus ⚡</h2>
-            <p className="text-slate-500 dark:text-slate-400 font-medium">Real-time college intelligence.</p>
+            <p className="text-slate-500 dark:text-slate-400 font-medium">Synced with cloud hub.</p>
           </div>
         )}
       </header>
@@ -162,14 +162,7 @@ const App: React.FC = () => {
       <main className="flex-1 px-4 pb-10 relative z-10 overflow-y-auto no-scrollbar">
         {currentModule === 'DASHBOARD' ? (
           <div className="grid grid-cols-2 gap-5 animate-slideUp">
-            <FeatureCard 
-              title="VPai Assistant" 
-              icon="fa-robot" 
-              gradient="from-violet-600 to-fuchsia-600" 
-              onClick={() => setCurrentModule('VPAI')}
-              className="col-span-2 py-10"
-              desc="Next-Gen AI Campus Guide"
-            />
+            <FeatureCard title="VPai Assistant" icon="fa-robot" gradient="from-violet-600 to-fuchsia-600" onClick={() => setCurrentModule('VPAI')} className="col-span-2 py-10" desc="Talk to the database" />
             <FeatureCard title="Attendance" icon="fa-chart-pie" gradient="from-emerald-400 to-teal-600" onClick={() => setCurrentModule('ATTENDANCE')} desc="Live progress" />
             <FeatureCard title="Timetable" icon="fa-calendar-week" gradient="from-blue-400 to-indigo-600" onClick={() => setCurrentModule('TIMETABLE')} desc="Class schedules" />
             <FeatureCard title="Scholarship" icon="fa-graduation-cap" gradient="from-amber-400 to-orange-500" onClick={() => setCurrentModule('SCHOLARSHIP')} desc="Financial aid" />
@@ -192,14 +185,7 @@ const App: React.FC = () => {
             <Logo className="w-24 h-24 mb-6 mx-auto" />
             <h3 className="text-2xl font-black mb-2 text-center text-slate-800 dark:text-white uppercase tracking-tighter">Admin Access</h3>
             <form onSubmit={handleAdminLogin}>
-              <input 
-                type="password" 
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-5 mb-6 outline-none focus:ring-4 focus:ring-blue-100 text-center text-2xl text-slate-800 dark:text-white"
-                autoFocus
-              />
+              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-5 mb-6 text-center text-2xl text-slate-800 dark:text-white" autoFocus />
               <div className="flex gap-4">
                 <button type="button" onClick={() => setShowAdminLogin(false)} className="flex-1 py-4 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-2xl font-bold">Cancel</button>
                 <button type="submit" className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-bold">Verify</button>
@@ -208,23 +194,7 @@ const App: React.FC = () => {
           </div>
         </div>
       )}
-
-      <style>{`
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes slideUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes scaleIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
-        @keyframes blob { 
-          0% { transform: translate(0px, 0px) scale(1); } 
-          50% { transform: translate(30px, -50px) scale(1.1); } 
-          100% { transform: translate(0px, 0px) scale(1); } 
-        }
-        .animate-fadeIn { animation: fadeIn 0.4s ease-out; }
-        .animate-slideUp { animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1); }
-        .animate-scaleIn { animation: scaleIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); }
-        .animate-blob { animation: blob 7s infinite alternate; }
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-      `}</style>
+      <style>{`.no-scrollbar::-webkit-scrollbar { display: none; } .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }`}</style>
     </div>
   );
 };

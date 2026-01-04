@@ -3,14 +3,14 @@ import { AppData } from "../types";
 import { INITIAL_DATA } from "../constants";
 
 /**
- * GLOBAL CLOUD SYNC
- * Using npoint.io shared JSON hub for real-time global state.
+ * GLOBAL CAMPUS CLOUD HUB
+ * Using npoint.io shared JSON bin for high-speed cross-device sync.
  */
-const CLOUD_BIN_ID = '9307f5984f884a441416'; // Using the user's provided BIN
+const CLOUD_BIN_ID = '9307f5984f884a441416'; 
 const CLOUD_URL = `https://api.npoint.io/${CLOUD_BIN_ID}`;
-const STORAGE_KEY = 'QUADX_SHARED_STATE';
-const DB_NAME = 'QuadX_Global_DB';
-const STORE_NAME = 'campus_data_store';
+const STORAGE_KEY = 'QUADX_GLOBAL_STATE_V3';
+const DB_NAME = 'QuadX_Global_IDB';
+const STORE_NAME = 'main_store';
 
 const getIDB = (): Promise<IDBDatabase> => {
   return new Promise((resolve, reject) => {
@@ -26,53 +26,55 @@ const getIDB = (): Promise<IDBDatabase> => {
 };
 
 const idbGet = async (key: string): Promise<any> => {
-  const db = await getIDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(STORE_NAME, 'readonly');
-    const request = transaction.objectStore(STORE_NAME).get(key);
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
+  try {
+    const db = await getIDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(STORE_NAME, 'readonly');
+      const request = transaction.objectStore(STORE_NAME).get(key);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  } catch (e) { return null; }
 };
 
 const idbSet = async (key: string, value: any): Promise<void> => {
-  const db = await getIDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(STORE_NAME, 'readwrite');
-    const request = transaction.objectStore(STORE_NAME).put(value, key);
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error);
-  });
+  try {
+    const db = await getIDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(STORE_NAME, 'readwrite');
+      const request = transaction.objectStore(STORE_NAME).put(value, key);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  } catch (e) {}
 };
 
 export const PersistenceService = {
   /**
-   * Loads global data from cloud bin. Adds cache-busting to ensure fresh data.
+   * Loads data from Cloud with local fallback.
+   * Forces cache-busting to ensure students see Admin updates immediately.
    */
   async loadData(): Promise<AppData> {
     try {
-      const response = await fetch(`${CLOUD_URL}?cb=${Date.now()}`);
+      const response = await fetch(`${CLOUD_URL}?cache_bust=${Date.now()}`);
       if (response.ok) {
         const cloudData = await response.json();
-        if (cloudData && typeof cloudData === 'object' && !Array.isArray(cloudData)) {
+        // Validation: Ensure the response is the full AppData object
+        if (cloudData && typeof cloudData === 'object' && cloudData.timetable !== undefined) {
           await idbSet(STORAGE_KEY, cloudData);
           return cloudData as AppData;
         }
       }
     } catch (e) {
-      console.warn("Global cloud hub offline, using local cache.");
+      console.warn("Sync: Hub offline. Using local persistence.");
     }
 
-    try {
-      const saved = await idbGet(STORAGE_KEY);
-      if (saved) return saved;
-    } catch (e) {}
-    
-    return INITIAL_DATA;
+    const cached = await idbGet(STORAGE_KEY);
+    return cached || INITIAL_DATA;
   },
 
   /**
-   * Saves data to both local storage and the global cloud hub.
+   * Pushes full state to the cloud hub.
    */
   async saveData(data: AppData): Promise<boolean> {
     try {
@@ -90,7 +92,7 @@ export const PersistenceService = {
       }
       return false;
     } catch (e) {
-      console.error("Cloud Sync Failure:", e);
+      console.error("Sync Failure:", e);
       return false;
     }
   }
